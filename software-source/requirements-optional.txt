@@ -1,0 +1,5 @@
+# Optional acquisition and local development tools
+python-can>=4.4,<5
+pytest>=8,<10
+# CARLA's Python API is installed from the CARLA release matching the simulator,
+# not from this requirements file. llama.cpp is a separate local runtime.

@@ -1,0 +1,78 @@
+import React, { useEffect, useMemo, useRef, useState } from "https://esm.sh/react@18.3.1";
+import { createRoot } from "https://esm.sh/react-dom@18.3.1/client?external=react";
+import htm from "https://esm.sh/htm@3.1.1";
+
+const html = htm.bind(React.createElement);
+const fmtTime = (value) => value ? new Date(value).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}) : "--:--";
+const fmtAgo = (value) => {
+  if (!value) return "no timestamp";
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60000));
+  return minutes < 1 ? "just now" : `${minutes} min ago`;
+};
+
+function App(){
+  const [data,setData]=useState(null),[caseData,setCaseData]=useState(null),[query,setQuery]=useState("What happened before the battery overheating warning?"),[answer,setAnswer]=useState(null),[loading,setLoading]=useState(false),[nav,setNav]=useState("Overview"),[toast,setToast]=useState(null),[scenario,setScenario]=useState("cooling_flow_drop"),[connected,setConnected]=useState(false);
+  const plot=useRef(null),ws=useRef(null),poll=useRef(null);
+  const refresh=async()=>{
+    try{
+      const res=await fetch("/api/dashboard",{cache:"no-store"});
+      if(!res.ok)throw new Error(`API ${res.status}`);
+      const body=await res.json();setData(body);
+      if(body.latest){const detail=await fetch(`/api/investigate/${encodeURIComponent(body.latest.id)}?before=10`,{cache:"no-store"});if(detail.ok)setCaseData(await detail.json());}
+    }catch(e){showToast(`Backend connection issue: ${e.message}`,true);}
+  };
+  const showToast=(message,error=false)=>{setToast({message,error});setTimeout(()=>setToast(null),3600);};
+  useEffect(()=>{refresh();poll.current=setInterval(refresh,20000);try{const protocol=location.protocol==="https:"?"wss":"ws";const socket=new WebSocket(`${protocol}://${location.host}/api/ws`);ws.current=socket;socket.onopen=()=>setConnected(true);socket.onclose=()=>setConnected(false);socket.onerror=()=>setConnected(false);}catch{}return()=>{clearInterval(poll.current);ws.current?.close();}},[]);
+  useEffect(()=>{
+    if(!data?.series?.length||!plot.current||!window.Plotly)return;
+    const x=data.series.map(d=>d.time), temp=data.series.map(d=>d.battery_temp??null),pump=data.series.map(d=>d.pump_current??null);
+    const traces=[
+      {x,y:temp,type:"scatter",mode:"lines",name:"Pack temperature",line:{color:"#38d9f1",width:2.6},connectgaps:false,hovertemplate:"%{x|%H:%M}<br>%{y:.1f} °C<extra></extra>"},
+      {x,y:pump,type:"scatter",mode:"lines",name:"Pump current",yaxis:"y2",line:{color:"#ffb361",width:2,dash:"solid"},connectgaps:false,hovertemplate:"%{x|%H:%M}<br>%{y:.2f} A<extra></extra>"}
+    ];
+    const layout={paper_bgcolor:"transparent",plot_bgcolor:"transparent",margin:{l:43,r:46,t:8,b:31},showlegend:false,hovermode:"x unified",font:{family:"DM Mono, monospace",size:9,color:"#8195a9"},xaxis:{gridcolor:"#192c3f",linecolor:"#23394d",tickformat:"%H:%M",nticks:7},yaxis:{title:{text:"°C",font:{size:9,color:"#38d9f1"}},gridcolor:"#192c3f",zeroline:false,tickfont:{color:"#38d9f1"}},yaxis2:{title:{text:"A",font:{size:9,color:"#ffb361"}},overlaying:"y",side:"right",showgrid:false,zeroline:false,tickfont:{color:"#ffb361"}},legend:{orientation:"h",y:1.12},uirevision:"autosynapse"};
+    window.Plotly.react(plot.current,traces,layout,{displayModeBar:false,responsive:true});
+  },[data]);
+  const runAsk=async(e)=>{e?.preventDefault();if(!query.trim()||!data?.latest)return;setLoading(true);try{const r=await fetch("/api/ask",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:query,event_id:data.latest.id})});const payload=await r.json();if(!r.ok)throw new Error(payload.detail||"Unable to investigate");setAnswer(payload);setCaseData({...caseData,event:payload.event,evidence:payload.evidence});setNav("Investigations");}catch(err){showToast(err.message,true);}finally{setLoading(false);}};
+  const runScenario=async()=>{setLoading(true);try{const r=await fetch("/api/simulate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({scenario})});const body=await r.json();if(!r.ok)throw new Error(body.detail||"Scenario failed");showToast("Synthetic scenario generated.");setAnswer(null);await refresh();}catch(e){showToast(e.message,true);}finally{setLoading(false);}};
+  const downloadReport=async()=>{if(!data?.latest)return;try{const r=await fetch(`/api/report/${encodeURIComponent(data.latest.id)}?before=10`);const blob=await r.blob();const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`autosynapse-${data.latest.id}.json`;link.click();URL.revokeObjectURL(link.href);}catch(e){showToast("Report export failed.",true);}};
+  const events=data?.events||[],evidence=(answer?.evidence||caseData?.evidence||[]),latest=data?.latest;
+  const metricItems=[
+    ["TIME-INDEXED SAMPLES",data?.samples?.toLocaleString?.()||"—","SQLite raw history","⌁"],
+    ["LINKED VEHICLE EVENTS",data?.event_count?.toLocaleString?.()||"—","Temporal graph facts","◇"],
+    ["ACTIVE STATISTICAL FLAGS",data?.flag_count?.toLocaleString?.()||"—",data?.anomaly?.method||"analytics loading","△"],
+    ["LATEST SIGNAL WINDOW",latest?fmtAgo(latest.timestamp):"—","Synthetic session","◷"]
+  ];
+  const menu=[["Overview","◫"],["Investigations","⌕"],["Knowledge graph","⌘"],["Data sources","▧"]];
+  const navTo=(label)=>{setNav(label);const id=label==="Overview"?"overview":label.toLowerCase().replaceAll(" ","-");document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"start"});};
+  return html`<div className="shell">
+    <aside className="sidebar">
+      <div className="brand"><div className="brand-mark">A</div><div className="brand-copy"><div className="brand-name">AUTOSYNAPSE</div><div className="brand-sub">NEURAL KNOWLEDGE FABRIC</div></div></div>
+      <div className="nav-label">WORKSPACE</div><nav className="nav">${menu.map(([label,icon])=>html`<button className=${`nav-btn ${nav===label?"active":""}`} onClick=${()=>navTo(label)}><span className="nav-icon">${icon}</span><span className="nav-text">${label}</span></button>`)}</nav>
+      <div className="nav-label">SYSTEM</div><div className="nav"><button className="nav-btn" onClick=${downloadReport}><span className="nav-icon">⇩</span><span className="nav-text">Export evidence</span></button><button className="nav-btn" onClick=${refresh}><span className="nav-icon">↻</span><span className="nav-text">Refresh fabric</span></button></div>
+      <div className="side-foot"><div className="side-status"><div className="side-status-title">Demo environment</div><div className="side-status-copy">Synthetic EV telemetry · read-only vehicle path · local-first architecture.</div><div className="side-badge"><span className="dot"></span> ${connected?"STREAM CONNECTED":"STREAM RECONNECTING"}</div></div></div>
+    </aside>
+    <main className="main" id="overview">
+      <header className="topbar"><div className="crumb"><b>FABRIC</b> / VEHICLE INTELLIGENCE / OVERVIEW</div><div className="top-right"><div className="status-chip"><span className="dot"></span> SYNTHETIC TELEMETRY</div><div className="status-chip public-chip">GLOBAL DEMO · NO REAL VEHICLE DATA</div><div className="avatar">EV</div></div></header>
+      <section className="hero"><div><div className="eyebrow">TEMPORAL VEHICLE INTELLIGENCE · BUILD 0.1</div><h1 className="title">From raw signals to<br className="hidden md:block"/> an evidence trail.</h1><p className="subtitle">Investigate what changed before a warning. Every answer is tied to time-stamped records, calculations, and a visible confidence class.</p></div><div className="hero-actions"><select className="btn" value=${scenario} onChange=${e=>setScenario(e.target.value)}><option value="cooling_flow_drop">Cooling flow drop</option><option value="sensor_dropout">Sensor dropout</option><option value="high_load">Sustained high load</option></select><button className="btn btn-primary" disabled=${loading} onClick=${runScenario}>＋ Generate scenario</button></div></section>
+      <section className="grid metrics">${metricItems.map(([label,value,note,icon])=>html`<article className="metric"><div className="metric-top"><span>${label}</span><span className="metric-icon">${icon}</span></div><div className="metric-value">${value}</div><div className=${`metric-note ${label.includes("FLAGS")&&data?.flag_count?"amber":""}`}>${note}</div></article>`)}</section>
+      <section className="grid content-grid">
+        <article className="card"><div className="card-head"><div><div className="card-title">Signal chronology</div><div className="card-sub">Last 45 minutes · aligned to the latest event window</div></div><span className="small-tag">UTC · SIMULATED</span></div><div className="chart" ref=${plot}></div><div className="legend"><span><i style=${{background:"#38d9f1"}}></i>PACK TEMPERATURE · °C</span><span><i style=${{background:"#ffb361"}}></i>PUMP CURRENT · A</span></div></article>
+        <article className="card"><div className="card-head"><div><div className="card-title">Recent vehicle events</div><div className="card-sub">Ordered by valid time · source provenance attached</div></div><span className="small-tag">${events.length} EVENTS</span></div><div className="event-list">${events.slice(0,5).map(ev=>html`<button className="event-row" onClick=${async()=>{const r=await fetch(`/api/investigate/${encodeURIComponent(ev.id)}?before=10`);if(r.ok){setCaseData(await r.json());setAnswer(null);setNav("Investigations");}}}><span className=${`event-mark ${ev.severity}`}></span><span><div className="event-title">${ev.title}</div><div className="event-meta">${fmtTime(ev.timestamp)} · ${ev.source} · ${ev.session_id}</div></span><span className=${`sev ${ev.severity}`}>${ev.severity}</span></button>`)}</div></article>
+      </section>
+      <section className="grid lower-grid" id="investigations">
+        <article className="card ask-card"><div className="card-head"><div><div className="card-title">Ask the fabric</div><div className="card-sub">Allow-listed investigation tools · no free-form SQL</div></div><span className="small-tag">FAST PATH ACTIVE</span></div><form className="ask-form" onSubmit=${runAsk}><input className="ask-input" value=${query} onInput=${e=>setQuery(e.target.value)} placeholder="Ask about an event or time window…"/><button className="btn btn-primary" disabled=${loading}>${loading?"Analyzing…":"Investigate →"}</button></form>
+          ${answer?html`<div className="answer-box"><div className="answer-kicker">Evidence-grounded response · ${answer.intent}</div>${answer.answer.map(line=>html`<p className="answer-line">${line.text}${line.evidence.map(id=>html`<span className="cite">${id}</span>`)}</p>`)}</div>`:html`<div className="answer-box"><div className="answer-kicker">Bounded reasoning pipeline</div><div className="answer-empty">The assistant resolves a query to an approved graph tool, calculates from retrieved records, labels certainty, and abstains when evidence is thin. ${data?.model?.mode||"Loading model status…"}.</div></div>`}
+        </article>
+        <article className="card" id="knowledge-graph"><div className="card-head"><div><div className="card-title">Evidence path</div><div className="card-sub">A small, inspectable subgraph around the warning</div></div><span className="small-tag">BI-TEMPORAL GRAPH</span></div><div className="graph-wrap"><svg className="graph-svg" viewBox="0 0 560 210" role="img" aria-label="Vehicle to session to pump and temperature episodes to warning graph"><defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L7 3.5L0 7" fill="#3a8292"/></marker></defs><path className="graph-link" markerEnd="url(#arrow)" d="M96 104 L166 104 M246 104 L318 65 M246 104 L318 144 M408 65 L468 104 M408 144 L468 112"/><path className="graph-link hyp" markerEnd="url(#arrow)" d="M406 144 Q454 170 475 123"/><g><rect className="graph-node" x="20" y="83" rx="9" width="76" height="42"/><text className="graph-txt" x="58" y="108" textAnchor="middle">VEHICLE</text></g><g><rect className="graph-node" x="166" y="83" rx="9" width="80" height="42"/><text className="graph-txt" x="206" y="108" textAnchor="middle">SESSION</text></g><g><rect className="graph-node" x="318" y="43" rx="9" width="90" height="42"/><text className="graph-txt" x="363" y="68" textAnchor="middle">TEMP RISE</text></g><g><rect className="graph-node hyp" x="318" y="123" rx="9" width="90" height="42"/><text className="graph-txt" x="363" y="148" textAnchor="middle">PUMP DROP</text></g><g><rect className="graph-node event" x="468" y="83" rx="9" width="77" height="42"/><text className="graph-txt" x="506" y="108" textAnchor="middle">WARNING</text></g></svg><div className="graph-caption">solid = observed / derived relationship · dashed violet = hypothesis · edge time + provenance stored in SQLite</div></div></article>
+      </section>
+      <section className="grid lower-grid" style=${{marginTop:"15px"}}>
+        <article className="card"><div className="card-head"><div><div className="card-title">Certainty-coded evidence</div><div className="card-sub">Select the source ID in an answer to trace its evidence card</div></div><span className="small-tag">${evidence.length} ITEMS</span></div><div className="evidence-list">${evidence.slice(0,5).map(item=>html`<div className="evidence"><div className="evidence-top"><span className="ev-title">${item.label}</span><span className=${`certainty ${item.certainty.replaceAll(" ","-")}`}>${item.certainty.toUpperCase()}</span></div><div className="ev-value">${item.value}</div><div className="ev-detail">${item.detail} <span className="cite">${item.id}</span></div></div>`)}</div></article>
+        <article className="card" id="data-sources"><div className="card-head"><div><div className="card-title">Connected technology layers</div><div className="card-sub">Prototype readiness is shown honestly</div></div><span className="small-tag">EDGE-FIRST DESIGN</span></div><div className="sources-grid">${[["Python simulator","Causal-labelled sample signals for reproducible demos.","ACTIVE"],["FastAPI · SQLite","Validated API plans, time-indexed records and graph tables.","ACTIVE"],["NumPy · Pandas","Window calculations and time-series preparation.","ACTIVE"],["Isolation Forest","Optional model; robust-statistics fallback if unavailable.",data?.anomaly?.method||"CHECKING"],["llama.cpp · SLM","SmolLM2 / Qwen candidates; local endpoint is optional.",data?.model?.configured?"CONNECTED":"NOT CONFIGURED"],["python-can · CARLA","Hardware / advanced simulator adapters; not connected here.","OPTIONAL"]].map(([name,copy,state])=>html`<div className="source-tile"><div className="source-name">${name}</div><div className="source-copy">${copy}</div><div className=${`source-state ${state==="ACTIVE"||state==="CONNECTED"?"active":""}`}>● ${state}</div></div>`)}</div></article>
+      </section>
+      <div className="disclaimer"><span>ⓘ</span><span><b>Prototype boundary.</b> This public demo uses synthetic telemetry only. A statistical flag is not a diagnosis; temporal order and correlation do not establish cause. Real CAN/CARLA feeds, local model weights, target-device profiling, and vehicle validation are not configured here.</span></div>
+      <footer className="foot"><span>AUTOSYNAPSE · NEURAL KNOWLEDGE FABRIC · PROTOTYPE 0.1</span><span>NO REAL VEHICLE DATA · NOT FOR SAFETY DECISIONS</span></footer>
+    </main>${toast?html`<div className=${`toast ${toast.error?"error":""}`}>${toast.message}</div>`:null}</div>`;
+}
+
+createRoot(document.getElementById("root")).render(React.createElement(App));

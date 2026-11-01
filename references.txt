@@ -1,0 +1,31 @@
+AUTOSYNAPSE — VERIFIED REFERENCES
+Accessed 2026-11-01
+
+PROJECT SOURCE
+1. Neural Knowledge Fabric for Temporal Automotive Intelligence and Explainable Vehicle Reasoning. Supplied project research/design report (18 pp.). It describes a proposed architecture and notes that resource/latency figures are targets; it supplies no formal bibliography.
+
+AI, MODELS AND RUNTIME
+2. Loubna Ben Allal et al. “SmolLM2: When Smol Goes Big — Data-Centric Training of a Small Language Model.” 2025. arXiv:2502.02737. https://arxiv.org/abs/2502.02737
+3. Qwen Team et al. “Qwen2.5 Technical Report.” 2024. arXiv:2412.15115. https://arxiv.org/abs/2412.15115
+4. Hugging Face. SmolLM2-360M-Instruct model card. https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct
+5. Qwen. Qwen2.5-0.5B-Instruct model card. https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct
+6. ggml-org. llama.cpp official repository and documentation. https://github.com/ggml-org/llama.cpp
+7. FastAPI project. Official documentation. https://fastapi.tiangolo.com/
+
+AUTOMOTIVE AND SIMULATION
+8. ISO. ISO 11898-1:2024, Road vehicles — Controller area network (CAN) — Part 1: Data link layer and physical coding sublayer. https://www.iso.org/standard/86384.html
+9. Alexey Dosovitskiy, German Ros, Felipe Codevilla, Antonio Lopez, and Vladlen Koltun. “CARLA: An Open Urban Driving Simulator.” CoRL 2017, PMLR 78:1–16. https://proceedings.mlr.press/v78/dosovitskiy17a.html
+10. CARLA project. Official documentation. https://carla.readthedocs.io/en/latest/start_introduction/
+11. AUTOSAR. Adaptive Platform, Release R25-11 (official platform page; release/current listing checked as of access date). https://www.autosar.org/standards/adaptive-platform
+12. CAN in Automation. CAN Dictionary v1.3 (2026). https://www.can-cia.org/fileadmin/cia/documents/brochures/can_dictionary_v13_2026.pdf
+
+ANALYTICS, TEMPORAL GRAPHS AND REASONING
+13. Fei Tony Liu, Kai Ming Ting, and Zhi-Hua Zhou. “Isolation Forest.” 2008 Eighth IEEE International Conference on Data Mining, pp. 413–422. DOI: 10.1109/ICDM.2008.17. https://doi.org/10.1109/ICDM.2008.17
+14. scikit-learn developers. IsolationForest API documentation. https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.IsolationForest.html
+15. Emanuele Rossi, Ben Chamberlain, Fabrizio Frasca, Davide Eynard, Federico Monti, and Michael Bronstein. “Temporal Graph Networks for Deep Learning on Dynamic Graphs.” 2020. arXiv:2006.10637. https://arxiv.org/abs/2006.10637
+16. Da Xu, Chuanwei Ruan, Evren Korpeoglu, Sushant Kumar, and Kannan Achan. “Inductive Representation Learning on Temporal Graphs.” ICLR 2020. arXiv:2002.07962. https://arxiv.org/abs/2002.07962
+17. Jakob Runge et al. “Detecting and quantifying causal associations in large nonlinear time series datasets.” Science Advances 5(11), 2019. DOI: 10.1126/sciadv.aau4996. https://doi.org/10.1126/sciadv.aau4996
+18. Clive W. J. Granger. “Investigating Causal Relations by Econometric Models and Cross-Spectral Methods.” Econometrica 37(3), 1969, pp. 424–438. DOI: 10.2307/1912791. https://doi.org/10.2307/1912791
+19. Patrick Lewis et al. “Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks.” NeurIPS 2020. arXiv:2005.11401. https://arxiv.org/abs/2005.11401
+
+These sources support background methods and candidate components. None evaluates or validates AUTOSYNAPSE. Model names and protocol integrations in the deck are proposals pending compatibility, licensing and hardware checks.
